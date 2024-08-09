@@ -1,64 +1,89 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useItems, useAddItem, useUpdateItem, useDeleteItem } from '@/integrations/supabase';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from 'lucide-react';
-
-const fetchHNStories = async () => {
-  const response = await fetch('https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=100');
-  if (!response.ok) {
-    throw new Error('Network response was not ok');
-  }
-  return response.json();
-};
+import { Pencil, Trash2 } from 'lucide-react';
 
 const Index = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['hnStories'],
-    queryFn: fetchHNStories,
-  });
+  const [newItemName, setNewItemName] = useState('');
+  const [editingItem, setEditingItem] = useState(null);
+  const { data: items, isLoading, error } = useItems();
+  const addItem = useAddItem();
+  const updateItem = useUpdateItem();
+  const deleteItem = useDeleteItem();
 
-  const filteredStories = data?.hits.filter(story =>
-    story.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const handleAddItem = () => {
+    if (newItemName.trim()) {
+      addItem.mutate({ name: newItemName.trim() });
+      setNewItemName('');
+    }
+  };
+
+  const handleUpdateItem = () => {
+    if (editingItem && editingItem.name.trim()) {
+      updateItem.mutate(editingItem);
+      setEditingItem(null);
+    }
+  };
+
+  const handleDeleteItem = (id) => {
+    deleteItem.mutate(id);
+  };
 
   return (
     <div className="min-h-screen p-8 bg-gray-100">
-      <h1 className="text-4xl font-bold mb-8 text-center">Hacker News Top 100</h1>
-      <Input
-        type="text"
-        placeholder="Search stories..."
-        className="mb-4 max-w-md mx-auto"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-      {isLoading && (
-        <div className="space-y-4">
-          {[...Array(10)].map((_, index) => (
-            <div key={index} className="bg-white p-4 rounded shadow animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-            </div>
-          ))}
-        </div>
-      )}
+      <h1 className="text-4xl font-bold mb-8 text-center">Supabase Item Manager</h1>
+      <div className="max-w-md mx-auto mb-8">
+        <Input
+          type="text"
+          placeholder="New item name..."
+          className="mb-2"
+          value={newItemName}
+          onChange={(e) => setNewItemName(e.target.value)}
+        />
+        <Button onClick={handleAddItem} className="w-full">
+          Add Item
+        </Button>
+      </div>
+      {isLoading && <p className="text-center">Loading items...</p>}
       {error && <p className="text-red-500 text-center">Error: {error.message}</p>}
-      {!isLoading && !error && (
-        <div className="space-y-4">
-          {filteredStories.map((story) => (
-            <div key={story.objectID} className="bg-white p-4 rounded shadow">
-              <h2 className="text-xl font-semibold mb-2">{story.title}</h2>
-              <p className="text-gray-600 mb-2">Upvotes: {story.points}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-              >
-                <a href={story.url} target="_blank" rel="noopener noreferrer">
-                  Read More <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
+      {items && (
+        <div className="space-y-4 max-w-md mx-auto">
+          {items.map((item) => (
+            <div key={item.id} className="bg-white p-4 rounded shadow flex items-center justify-between">
+              {editingItem && editingItem.id === item.id ? (
+                <Input
+                  type="text"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="mr-2"
+                />
+              ) : (
+                <span>{item.name}</span>
+              )}
+              <div>
+                {editingItem && editingItem.id === item.id ? (
+                  <Button onClick={handleUpdateItem} size="sm" className="mr-2">
+                    Save
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setEditingItem(item)}
+                    size="sm"
+                    variant="outline"
+                    className="mr-2"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  onClick={() => handleDeleteItem(item.id)}
+                  size="sm"
+                  variant="destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
